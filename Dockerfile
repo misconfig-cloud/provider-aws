@@ -3,6 +3,7 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
 WORKDIR /src
+RUN apk add --no-cache ca-certificates git
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
