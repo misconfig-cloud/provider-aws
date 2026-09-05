@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	Release             = "aws.sts-read-session@1.0.2"
+	Release             = "aws.sts-read-session@1.0.3"
 	Provider            = "aws"
 	CredentialKind      = "aws.process-credentials.v1"
 	RevocationSemantics = "renewal-stops-immediately-existing-session-expires"

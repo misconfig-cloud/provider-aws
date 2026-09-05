@@ -24,8 +24,12 @@ func Configure(input io.Reader, output io.Writer) error {
 	config := "[profile misconfig-session]\ncredential_process = " + process + "\n"
 	result := provideradapter.RenderedEnvironment{
 		Remove: []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_SHARED_CREDENTIALS_FILE"},
-		Set:    map[string]string{"AWS_PROFILE": "misconfig-session", "AWS_DEFAULT_PROFILE": "misconfig-session", "AWS_CONFIG_FILE": request.RuntimeDirectory + "/aws-config", "AWS_SDK_LOAD_CONFIG": "1", "AWS_EC2_METADATA_DISABLED": "true"},
-		Files:  []provideradapter.RenderedFile{{Name: "aws-config", Content: config, Mode: 0o600}},
+		Set: map[string]string{
+			"AWS_PROFILE": "misconfig-session", "AWS_DEFAULT_PROFILE": "misconfig-session",
+			"AWS_CONFIG_FILE": request.RuntimeDirectory + "/aws-config", "AWS_SDK_LOAD_CONFIG": "1",
+			"AWS_REGION": "us-east-1", "AWS_DEFAULT_REGION": "us-east-1", "AWS_EC2_METADATA_DISABLED": "true",
+		},
+		Files: []provideradapter.RenderedFile{{Name: "aws-config", Content: config, Mode: 0o600}},
 	}
 	return json.NewEncoder(output).Encode(result)
 }

@@ -19,7 +19,7 @@ func TestConfigureCreatesIsolatedCredentialProcessEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	var rendered provideradapter.RenderedEnvironment
-	if json.Unmarshal(output.Bytes(), &rendered) != nil || rendered.Set["AWS_PROFILE"] != "misconfig-session" || rendered.Set["AWS_EC2_METADATA_DISABLED"] != "true" || len(rendered.Files) != 1 || rendered.Files[0].Mode != 0o600 {
+	if json.Unmarshal(output.Bytes(), &rendered) != nil || rendered.Set["AWS_PROFILE"] != "misconfig-session" || rendered.Set["AWS_REGION"] != "us-east-1" || rendered.Set["AWS_DEFAULT_REGION"] != "us-east-1" || rendered.Set["AWS_EC2_METADATA_DISABLED"] != "true" || len(rendered.Files) != 1 || rendered.Files[0].Mode != 0o600 {
 		t.Fatalf("unexpected environment: %#v", rendered)
 	}
 	config := rendered.Files[0].Content
