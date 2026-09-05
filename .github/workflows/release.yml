@@ -1,0 +1,62 @@
+name: Release AWS provider adapter
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Validate and build release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-list -n 1 "${GITHUB_REF_NAME}")" = "${GITHUB_SHA}"
+          make check
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct "${GITHUB_SHA}")" make release \
+            RELEASE_VERSION="${GITHUB_REF_NAME#v}" RELEASE_COMMIT="${GITHUB_SHA}"
+          make verify-release
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign checksums
+        run: cosign sign-blob --yes --bundle dist/checksums.txt.sigstore.json dist/checksums.txt
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.0.0
+        with:
+          subject-path: |
+            dist/misconfig-provider-aws_*.tar.gz
+            dist/manifest.json
+            dist/sbom.spdx.json
+            dist/checksums.txt
+      - name: Build and publish immutable multi-arch broker image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${GH_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/provider-aws:${GITHUB_REF_NAME}"
+          docker buildx create --use
+          docker buildx build --platform linux/amd64,linux/arm64 --provenance=mode=max --sbom=true --push \
+            --build-arg VERSION="${GITHUB_REF_NAME#v}" -t "${image}" .
+          docker buildx imagetools inspect "${image}" > dist/container-manifest.txt
+          cosign sign --yes "${image}"
+      - name: Publish immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --verify-tag --title "AWS provider adapter ${GITHUB_REF_NAME}" --generate-notes
