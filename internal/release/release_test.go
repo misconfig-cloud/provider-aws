@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -22,6 +23,9 @@ func TestBuildVerifyAndTamper(t *testing.T) {
 	if len(manifest.Artifacts) != 1 {
 		t.Fatalf("artifacts=%d", len(manifest.Artifacts))
 	}
+	if manifest.SchemaVersion != 2 || !validDigest(manifest.Artifacts[0].BinarySHA256) {
+		t.Fatalf("release manifest does not bind the executable: %#v", manifest.Artifacts[0])
+	}
 	// The production verifier intentionally requires the full public matrix.
 	manifestPath := filepath.Join(first, "manifest.json")
 	encoded, err := os.ReadFile(manifestPath)
@@ -38,6 +42,15 @@ func TestBuildVerifyAndTamper(t *testing.T) {
 	}
 	if manifest.Artifacts[0].SHA256 != secondManifest.Artifacts[0].SHA256 {
 		t.Fatal("release archive is not reproducible")
+	}
+	if manifest.Artifacts[0].BinarySHA256 != secondManifest.Artifacts[0].BinarySHA256 {
+		t.Fatal("release executable is not reproducible")
+	}
+	if err := verifyArchivedBinary(filepath.Join(first, manifest.Artifacts[0].Filename), manifest.Artifacts[0].BinarySHA256); err != nil {
+		t.Fatalf("verify executable: %v", err)
+	}
+	if err := verifyArchivedBinary(filepath.Join(first, manifest.Artifacts[0].Filename), strings.Repeat("0", 64)); err == nil {
+		t.Fatal("wrong executable digest accepted")
 	}
 	artifact := filepath.Join(first, manifest.Artifacts[0].Filename)
 	file, err := os.OpenFile(artifact, os.O_APPEND|os.O_WRONLY, 0)

@@ -25,9 +25,10 @@ type Target struct {
 }
 type Artifact struct {
 	Target
-	Filename string `json:"filename"`
-	SHA256   string `json:"sha256"`
-	Size     int64  `json:"size"`
+	Filename     string `json:"filename"`
+	SHA256       string `json:"sha256"`
+	BinarySHA256 string `json:"binary_sha256"`
+	Size         int64  `json:"size"`
 }
 type File struct {
 	Filename string `json:"filename"`
@@ -90,7 +91,7 @@ func Build(ctx context.Context, repository string, options Options) (Manifest, e
 		return Manifest{}, err
 	}
 	defer os.RemoveAll(work)
-	manifest := Manifest{SchemaVersion: 1, Product: "misconfig-provider-aws", Version: options.Version, Commit: options.Commit, SourceDateEpoch: options.SourceDateEpoch}
+	manifest := Manifest{SchemaVersion: 2, Product: "misconfig-provider-aws", Version: options.Version, Commit: options.Commit, SourceDateEpoch: options.SourceDateEpoch}
 	for _, target := range targets {
 		filename := fmt.Sprintf("misconfig-provider-aws_%s_%s_%s.tar.gz", options.Version, target.OS, target.Arch)
 		destination := filepath.Join(output, filename)
@@ -107,6 +108,10 @@ func Build(ctx context.Context, repository string, options Options) (Manifest, e
 		if encoded, err := command.CombinedOutput(); err != nil {
 			return Manifest{}, fmt.Errorf("build %s/%s: %w: %s", target.OS, target.Arch, err, encoded)
 		}
+		binaryDigest, _, err := digestFile(binary)
+		if err != nil {
+			return Manifest{}, err
+		}
 		files := []archiveFile{{"misconfig-provider-aws", binary, 0o755}, {"install.sh", filepath.Join(repository, "scripts", "install.sh"), 0o755}, {"uninstall.sh", filepath.Join(repository, "scripts", "uninstall.sh"), 0o755}, {"LICENSE", filepath.Join(repository, "LICENSE"), 0o644}, {"README.md", filepath.Join(repository, "README.md"), 0o644}, {"SECURITY.md", filepath.Join(repository, "SECURITY.md"), 0o644}}
 		if err := writeArchive(destination, files, time.Unix(options.SourceDateEpoch, 0).UTC()); err != nil {
 			return Manifest{}, err
@@ -115,7 +120,7 @@ func Build(ctx context.Context, repository string, options Options) (Manifest, e
 		if err != nil {
 			return Manifest{}, err
 		}
-		manifest.Artifacts = append(manifest.Artifacts, Artifact{Target: target, Filename: filename, SHA256: digest, Size: size})
+		manifest.Artifacts = append(manifest.Artifacts, Artifact{Target: target, Filename: filename, SHA256: digest, BinarySHA256: binaryDigest, Size: size})
 	}
 	sbom, err := buildSBOM(ctx, repository, manifest)
 	if err != nil {
@@ -142,7 +147,7 @@ func Verify(directory string) error {
 		return err
 	}
 	var manifest Manifest
-	if json.Unmarshal(encoded, &manifest) != nil || manifest.SchemaVersion != 1 || manifest.Product != "misconfig-provider-aws" || !versionPattern.MatchString(manifest.Version) || len(manifest.Artifacts) != 4 {
+	if json.Unmarshal(encoded, &manifest) != nil || manifest.SchemaVersion != 2 || manifest.Product != "misconfig-provider-aws" || !versionPattern.MatchString(manifest.Version) || len(manifest.Artifacts) != 4 {
 		return errors.New("invalid release manifest")
 	}
 	seen := map[string]bool{}
@@ -156,7 +161,7 @@ func Verify(directory string) error {
 	}
 	files := append([]File{{Filename: "manifest.json"}}, manifest.SBOM)
 	for _, artifact := range manifest.Artifacts {
-		if !safeName(artifact.Filename) || seen[artifact.Filename] || seenTargets[artifact.Target] || !expectedTargets[artifact.Target] {
+		if !safeName(artifact.Filename) || seen[artifact.Filename] || seenTargets[artifact.Target] || !expectedTargets[artifact.Target] || !validDigest(artifact.BinarySHA256) {
 			return errors.New("invalid artifact manifest")
 		}
 		seen[artifact.Filename] = true
@@ -168,6 +173,11 @@ func Verify(directory string) error {
 			return err
 		}
 	}
+	for _, artifact := range manifest.Artifacts {
+		if err := verifyArchivedBinary(filepath.Join(directory, artifact.Filename), artifact.BinarySHA256); err != nil {
+			return fmt.Errorf("verify %s executable: %w", artifact.Filename, err)
+		}
+	}
 	checks, err := os.ReadFile(filepath.Join(directory, "checksums.txt"))
 	if err != nil {
 		return err
@@ -175,6 +185,48 @@ func Verify(directory string) error {
 	want := checksumText(manifest, sha256Hex(encoded))
 	if string(checks) != want {
 		return errors.New("checksum manifest does not match release manifest")
+	}
+	return nil
+}
+
+func verifyArchivedBinary(archivePath, expectedDigest string) error {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return err
+	}
+	defer gzipReader.Close()
+	tars := tar.NewReader(gzipReader)
+	found := false
+	for {
+		header, err := tars.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if header.Name != "misconfig-provider-aws" {
+			continue
+		}
+		if found || header.Typeflag != tar.TypeReg || header.Size <= 0 {
+			return errors.New("invalid executable archive entry")
+		}
+		hash := sha256.New()
+		if _, err := io.Copy(hash, tars); err != nil {
+			return err
+		}
+		if hex.EncodeToString(hash.Sum(nil)) != expectedDigest {
+			return errors.New("executable digest mismatch")
+		}
+		found = true
+	}
+	if !found {
+		return errors.New("executable missing from archive")
 	}
 	return nil
 }
