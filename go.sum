@@ -1,5 +1,7 @@
 github.com/aws/aws-sdk-go-v2 v1.46.0 h1:1kt7m/EKcEHt5mlyyxx9cSlMddRPIKbjb6DIQsu4HPk=
 github.com/aws/aws-sdk-go-v2 v1.46.0/go.mod h1:bttEH6JqnUL8LepvDVfdrds/fZ5bCIxzpe3abyUrhDU=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 h1:GPRlPwz40I2B2VrBEASOA3Bi77NyeqejNLkifosX0rs=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20/go.mod h1:g7PNzKcsOKWb4fkSRBA7BZVAS6Y8IcxzN+nRohhQ1Q8=
 github.com/aws/aws-sdk-go-v2/config v1.33.3 h1:h090b3O5S17bF87/0ysHZuIT/7DCb4EBRFQX2PMVPCw=
 github.com/aws/aws-sdk-go-v2/config v1.33.3/go.mod h1:YYDB1kTejxbfAbEVUqgCtkVp26xvNCHev9cLKABMGAk=
 github.com/aws/aws-sdk-go-v2/credentials v1.20.3 h1:tToOYM/LXev4NpfWlIYGDvBvjHmJ3HXpRU9ppl+pM6k=
@@ -16,6 +18,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 h1:bAdDl/
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19/go.mod h1:KaUzbLxv4CeSxh6ZCl9B4m7CuFenS8kUEaDs+f/DQr4=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.2 h1:ZtHYnumr6QyxhzEzNZwzQTFJEXOswrZqTTkRxthwvr4=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.2/go.mod h1:a1NXrYpBd311gBzn1UI5UzJyyvXktM4xNh/ydPiPpqY=
+github.com/aws/aws-sdk-go-v2/service/lambda v1.107.0 h1:YnwvRfe3paJJrhBDM6QarmE81EJKsX5ErYagohkso1Y=
+github.com/aws/aws-sdk-go-v2/service/lambda v1.107.0/go.mod h1:8z6HcrMubv4+JfaPuWiP82sFM7/qK3huB3WdcszBM5A=
 github.com/aws/aws-sdk-go-v2/service/signin v1.9.0 h1:c3k+k/CS4L+sAIH6fxikL+g5g2LpeNczaoyjjw1iMKI=
 github.com/aws/aws-sdk-go-v2/service/signin v1.9.0/go.mod h1:AGIoQg99fBrOIQnF78TLx4lj18mc4gZ0hJx1UaLIFM4=
 github.com/aws/aws-sdk-go-v2/service/sso v1.37.0 h1:+rqBaOq7jzInjY8M12hr+zEe85JpRll9BjMx38r33Ok=
@@ -26,5 +30,5 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.49.0 h1:N7Ey8obY3uSui+cxl0OUzFlFmkxS
 github.com/aws/aws-sdk-go-v2/service/sts v1.49.0/go.mod h1:zMBwjSf4Pt8a1OHYiZ5rPD0PJRK1kQrUaxhS/Dbld8E=
 github.com/aws/smithy-go v1.28.1 h1:R/nXH00c8qcfCzQVELtRw+eLQWtzv+VAIEFJ1/xxXlQ=
 github.com/aws/smithy-go v1.28.1/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=
-github.com/misconfig-cloud/provider-sdk v0.3.0 h1:mApoZY64ZhF5ElTWzvbi/k9/4y4b1cPOrb4xVWHMda8=
-github.com/misconfig-cloud/provider-sdk v0.3.0/go.mod h1:PXTmWUIC9qfQq3ABiz8T8gRyJVuRTyKi4TveKqgQVwA=
+github.com/misconfig-cloud/provider-sdk v0.4.1 h1:QVy2tFvk2yItjGRHISAkZE8fmJ/N/JV5/NJINS5QpBA=
+github.com/misconfig-cloud/provider-sdk v0.4.1/go.mod h1:PXTmWUIC9qfQq3ABiz8T8gRyJVuRTyKi4TveKqgQVwA=

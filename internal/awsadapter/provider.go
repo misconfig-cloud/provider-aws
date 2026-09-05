@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	Release             = "aws.sts-read-session@1.0.3"
+	Release             = "aws.sts-session@1.1.0"
 	Provider            = "aws"
 	CredentialKind      = "aws.process-credentials.v1"
 	RevocationSemantics = "renewal-stops-immediately-existing-session-expires"
@@ -107,7 +107,7 @@ func (b Broker) Prepare(_ context.Context, request provideradapter.PrepareReques
 				},
 			},
 		},
-		"permission_boundary": "Attach only the AWS read actions this adapter release can intersect with a signed session policy.",
+		"permission_boundary": "Attach the documented read actions plus only the typed action permissions you intentionally enable. Every mutation is separately bound to one signed capability, exact resource, short-lived approval, execution receipt, and independent verification.",
 	})
 	return provideradapter.Connection{Configuration: configurationValue, Onboarding: onboarding}, nil
 }

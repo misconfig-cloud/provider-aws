@@ -16,14 +16,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/misconfig-cloud/provider-aws/internal/awsadapter"
 	"github.com/misconfig-cloud/provider-aws/internal/renderer"
 	provideradapter "github.com/misconfig-cloud/provider-sdk"
 )
 
-const publisherKeyID = "misconfig-aws-2026-v2"
+const publisherKeyID = "misconfig-aws-2026-v3"
 
 var version = "dev"
 
@@ -61,7 +64,13 @@ func serve() {
 		log.Fatal(err)
 	}
 	implementation := awsadapter.Broker{Client: sts.NewFromConfig(awsConfig), BrokerPrincipalARN: strings.TrimSpace(os.Getenv("MISCONFIG_AWS_BROKER_PRINCIPAL_ARN"))}
-	handler, err := (&provideradapter.HTTPHandler{Implementation: implementation, SharedSecret: strings.TrimSpace(os.Getenv("MISCONFIG_ADAPTER_SHARED_SECRET")), ManifestDigest: strings.TrimSpace(os.Getenv("MISCONFIG_ADAPTER_MANIFEST_DIGEST")), Release: awsadapter.Release}).Handler()
+	actions := awsadapter.Actions{Broker: implementation, LambdaFactory: func(region string, material aws.Credentials) awsadapter.LambdaClient {
+		configuration := awsConfig.Copy()
+		configuration.Region = region
+		configuration.Credentials = aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(material.AccessKeyID, material.SecretAccessKey, material.SessionToken))
+		return lambda.NewFromConfig(configuration)
+	}}
+	handler, err := (&provideradapter.HTTPHandler{Implementation: implementation, Actions: actions, SharedSecret: strings.TrimSpace(os.Getenv("MISCONFIG_ADAPTER_SHARED_SECRET")), ManifestDigest: strings.TrimSpace(os.Getenv("MISCONFIG_ADAPTER_MANIFEST_DIGEST")), Release: awsadapter.Release}).Handler()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -153,6 +162,7 @@ func signManifest(args []string) {
 		Credential:          provideradapter.Credential{Kind: awsadapter.CredentialKind, MaximumTTLSeconds: int64(awsadapter.MaximumTTL.Seconds()), RevocationSemantics: awsadapter.RevocationSemantics, PayloadSchema: map[string]any{"type": "object", "required": []string{"Version", "AccessKeyId", "SecretAccessKey", "SessionToken", "Expiration"}}},
 		Renderer:            provideradapter.Renderer{Protocol: provideradapter.RendererProtocol, Executable: "misconfig-provider-aws", Artifacts: artifacts, SensitiveEnvironment: []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN", "AWS_PROFILE", "AWS_DEFAULT_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"}},
 		Broker:              provideradapter.Broker{Protocol: provideradapter.BrokerProtocol, Endpoint: *endpoint},
+		Actions:             awsadapter.ActionCapabilities(),
 	}
 	signed, err := provideradapter.Sign(manifest, ed25519.PrivateKey(privateKey))
 	if err != nil {

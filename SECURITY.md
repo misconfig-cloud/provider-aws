@@ -14,10 +14,12 @@ protocol requests from the Misconfig session control plane and returns
 short-lived provider material. It must not be exposed directly to agent
 processes or the public internet.
 
-The first AWS release is read-only. It intersects the immutable Misconfig
-authorization with the customer role by using an AWS STS inline session
-policy. Unknown allowed operations, account substitution, unsupported resource
-scopes, overlong credentials, and release changes fail closed.
+Session credentials are read-only. Typed mutations use a different authority
+and execution path: one signed capability, canonical action digest, exact
+resource, single-use approval, short expiry, provider receipt, and independent
+read-back verification. Unknown operations, account or parameter substitution,
+qualified Lambda aliases, unsupported resource scopes, overlong credentials,
+missing AWS request identities, and release changes fail closed.
 
 The broker's AWS principal may call `sts:AssumeRole` only for customer roles
 that explicitly trust it with the connection-specific external ID and
