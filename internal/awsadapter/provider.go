@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	Release             = "aws.sts-read-session@1.0.0"
+	Release             = "aws.sts-read-session@1.0.1"
 	Provider            = "aws"
 	CredentialKind      = "aws.process-credentials.v1"
 	RevocationSemantics = "renewal-stops-immediately-existing-session-expires"
@@ -90,14 +90,23 @@ func (b Broker) Prepare(_ context.Context, request provideradapter.PrepareReques
 		"broker_principal_arn": b.BrokerPrincipalARN,
 		"trust_policy": map[string]any{
 			"Version": "2012-10-17",
-			"Statement": []map[string]any{{
-				"Effect": "Allow", "Principal": map[string]string{"AWS": b.BrokerPrincipalARN},
-				"Action": []string{"sts:AssumeRole", "sts:SetSourceIdentity"},
-				"Condition": map[string]any{
-					"StringEquals": map[string]string{"sts:ExternalId": input.ExternalID},
-					"StringLike":   map[string]string{"sts:SourceIdentity": "misconfig-*"},
+			"Statement": []map[string]any{
+				{
+					"Sid": "AssumeExactMisconfigConnection", "Effect": "Allow",
+					"Principal": map[string]string{"AWS": b.BrokerPrincipalARN}, "Action": "sts:AssumeRole",
+					"Condition": map[string]any{
+						"StringEquals": map[string]string{"sts:ExternalId": input.ExternalID},
+						"StringLike":   map[string]string{"sts:SourceIdentity": "misconfig-*"},
+					},
 				},
-			}},
+				{
+					"Sid": "PermitAttributedSourceIdentity", "Effect": "Allow",
+					"Principal": map[string]string{"AWS": b.BrokerPrincipalARN}, "Action": "sts:SetSourceIdentity",
+					"Condition": map[string]any{
+						"StringLike": map[string]string{"sts:SourceIdentity": "misconfig-*"},
+					},
+				},
+			},
 		},
 		"permission_boundary": "Attach only the AWS read actions this adapter release can intersect with a signed session policy.",
 	})

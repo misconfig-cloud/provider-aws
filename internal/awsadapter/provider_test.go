@@ -36,6 +36,7 @@ func TestBrokerPreparesVerifiesAndIssuesExactScopedCredentials(t *testing.T) {
 	if json.Unmarshal(prepared.Onboarding, &onboarding) != nil || onboarding["broker_principal_arn"] == nil || onboarding["external_id"] == nil {
 		t.Fatalf("onboarding instructions are incomplete: %s", prepared.Onboarding)
 	}
+	assertTrustPolicySeparatesExternalIDFromSourceIdentityPermission(t, prepared.Onboarding)
 	verified, err := broker.Verify(context.Background(), provideradapter.VerifyRequest{RequestID: "verify-1", TenantID: "tenant-1", ConnectionID: "connection-1", Provider: Provider, Release: Release, AccountRef: "123456789012", Configuration: prepared.Configuration, Now: now})
 	if err != nil || verified.TargetIdentity != "arn:aws:iam::123456789012:role/MisconfigSession" || len(client.inputs) != 1 || client.inputs[0].Policy != nil {
 		t.Fatalf("verification changed: %#v %#v %v", verified, client.inputs, err)
@@ -56,6 +57,36 @@ func TestBrokerPreparesVerifiesAndIssuesExactScopedCredentials(t *testing.T) {
 	var payload map[string]any
 	if json.Unmarshal(material.Payload, &payload) != nil || payload["Version"] != float64(1) || payload["AccessKeyId"] != "ASIAFIXTURE" {
 		t.Fatalf("credential_process material is invalid: %s", material.Payload)
+	}
+}
+
+func assertTrustPolicySeparatesExternalIDFromSourceIdentityPermission(t *testing.T, encoded json.RawMessage) {
+	t.Helper()
+	var onboarding struct {
+		TrustPolicy struct {
+			Statements []struct {
+				Action    string                       `json:"Action"`
+				Condition map[string]map[string]string `json:"Condition"`
+			} `json:"Statement"`
+		} `json:"trust_policy"`
+	}
+	if err := json.Unmarshal(encoded, &onboarding); err != nil {
+		t.Fatal(err)
+	}
+	if len(onboarding.TrustPolicy.Statements) != 2 {
+		t.Fatalf("trust policy statements=%d, want 2: %s", len(onboarding.TrustPolicy.Statements), encoded)
+	}
+	statements := map[string]map[string]map[string]string{}
+	for _, statement := range onboarding.TrustPolicy.Statements {
+		statements[statement.Action] = statement.Condition
+	}
+	assume := statements["sts:AssumeRole"]
+	if assume["StringEquals"]["sts:ExternalId"] != "misconfig-fixed-external-id" || assume["StringLike"]["sts:SourceIdentity"] != "misconfig-*" {
+		t.Fatalf("AssumeRole trust is not exact: %#v", assume)
+	}
+	setSource := statements["sts:SetSourceIdentity"]
+	if _, exists := setSource["StringEquals"]["sts:ExternalId"]; exists || setSource["StringLike"]["sts:SourceIdentity"] != "misconfig-*" {
+		t.Fatalf("SetSourceIdentity trust inherited the external ID or lost attribution: %#v", setSource)
 	}
 }
 
