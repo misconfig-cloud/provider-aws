@@ -84,6 +84,62 @@ func TestUnavoidableAWSIdentityOperationMustBeDeclared(t *testing.T) {
 	}
 }
 
+func TestCompileSessionPolicyKeepsExactTypedActionOutsideReadCredentials(t *testing.T) {
+	authorization := fixtureAuthorization()
+	functionARN := "arn:aws:lambda:us-east-1:123456789012:function:checkout"
+	authorization.ResourcePrefixes = append(authorization.ResourcePrefixes, functionARN)
+	authorization.Rules = append(authorization.Rules, provideradapter.AuthorizationRule{
+		ID: "typed-lambda-concurrency", Effect: "require_typed_capability", Providers: []string{"aws"},
+		Operations: []string{SetLambdaReservedConcurrencyOperation}, ResourcePrefixes: []string{functionARN},
+	})
+
+	encoded, err := CompileSessionPolicy(authorization, "123456789012")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(encoded, "lambda:") || strings.Contains(encoded, functionARN) {
+		t.Fatalf("typed action leaked into read credentials: %s", encoded)
+	}
+	if !strings.Contains(encoded, "sts:GetCallerIdentity") {
+		t.Fatalf("read credential lost its declared bootstrap capability: %s", encoded)
+	}
+}
+
+func TestCompileSessionPolicyRejectsUnboundOrUnrepresentableTypedActionScope(t *testing.T) {
+	functionARN := "arn:aws:lambda:us-east-1:123456789012:function:checkout"
+	tests := map[string]func(*provideradapter.Authorization){
+		"unbound extra resource": func(value *provideradapter.Authorization) {
+			value.ResourcePrefixes = append(value.ResourcePrefixes, functionARN)
+		},
+		"typed rule outside ceiling": func(value *provideradapter.Authorization) {
+			value.Rules = append(value.Rules, provideradapter.AuthorizationRule{ID: "typed", Effect: "require_typed_capability", Providers: []string{"aws"}, Operations: []string{SetLambdaReservedConcurrencyOperation}, ResourcePrefixes: []string{functionARN}})
+		},
+		"unknown typed operation": func(value *provideradapter.Authorization) {
+			value.ResourcePrefixes = append(value.ResourcePrefixes, functionARN)
+			value.Rules = append(value.Rules, provideradapter.AuthorizationRule{ID: "typed", Effect: "require_typed_capability", Providers: []string{"aws"}, Operations: []string{"aws.ec2.TerminateInstances"}, ResourcePrefixes: []string{functionARN}})
+		},
+		"wildcard function resource": func(value *provideradapter.Authorization) {
+			resource := "arn:aws:lambda:us-east-1:123456789012:function:*"
+			value.ResourcePrefixes = append(value.ResourcePrefixes, resource)
+			value.Rules = append(value.Rules, provideradapter.AuthorizationRule{ID: "typed", Effect: "require_typed_capability", Providers: []string{"aws"}, Operations: []string{SetLambdaReservedConcurrencyOperation}, ResourcePrefixes: []string{resource}})
+		},
+		"cross-account function resource": func(value *provideradapter.Authorization) {
+			resource := "arn:aws:lambda:us-east-1:999999999999:function:checkout"
+			value.ResourcePrefixes = append(value.ResourcePrefixes, resource)
+			value.Rules = append(value.Rules, provideradapter.AuthorizationRule{ID: "typed", Effect: "require_typed_capability", Providers: []string{"aws"}, Operations: []string{SetLambdaReservedConcurrencyOperation}, ResourcePrefixes: []string{resource}})
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			authorization := fixtureAuthorization()
+			mutate(&authorization)
+			if _, err := CompileSessionPolicy(authorization, "123456789012"); err == nil {
+				t.Fatal("unrepresentable typed action scope was accepted")
+			}
+		})
+	}
+}
+
 func fixtureAuthorization() provideradapter.Authorization {
 	return provideradapter.Authorization{
 		ProfileDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

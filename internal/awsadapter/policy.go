@@ -65,8 +65,8 @@ func CompileSessionPolicy(authorization provideradapter.Authorization, accountRe
 	if authorization.Provider != Provider || authorization.AccountRef != accountRef {
 		return "", errors.New("authorization target does not match AWS connection")
 	}
-	if !rootScope(authorization.ResourcePrefixes, accountRef) {
-		return "", errors.New("AWS wildcard-only read actions cannot enforce the requested narrower resource scope")
+	if err := validateAuthorizationScope(authorization, accountRef); err != nil {
+		return "", err
 	}
 
 	allowed := map[string]struct{}{}
@@ -154,6 +154,69 @@ func rootScope(prefixes []string, accountRef string) bool {
 		}
 	}
 	return true
+}
+
+// validateAuthorizationScope keeps the credential path and typed-action path
+// separate. Read credentials still require the account root because AWS read
+// APIs in this release are wildcard-only. Exact action resources may coexist
+// in the signed profile ceiling only when an AWS typed-capability rule binds
+// each resource to an action operation implemented by this adapter release.
+// They are never copied into the read credential's IAM session policy.
+func validateAuthorizationScope(authorization provideradapter.Authorization, accountRef string) error {
+	root := "aws://" + accountRef
+	typedResources := make(map[string]struct{})
+	foundRoot := false
+
+	for _, rule := range authorization.Rules {
+		if !appliesToAWS(rule.Providers) || rule.Effect != "require_typed_capability" {
+			continue
+		}
+		if len(rule.Operations) == 0 || len(rule.ResourcePrefixes) == 0 {
+			return fmt.Errorf("rule %s does not bind an exact AWS typed action", rule.ID)
+		}
+		for _, operation := range rule.Operations {
+			if operation != SetLambdaReservedConcurrencyOperation {
+				return fmt.Errorf("rule %s requires unsupported AWS typed operation %s", rule.ID, operation)
+			}
+		}
+		for _, resource := range rule.ResourcePrefixes {
+			resource = strings.TrimSpace(resource)
+			match := lambdaFunctionARNPattern.FindStringSubmatch(resource)
+			if len(match) != 5 || match[3] != accountRef {
+				return fmt.Errorf("rule %s has an AWS typed-action resource this release cannot enforce", rule.ID)
+			}
+			typedResources[resource] = struct{}{}
+		}
+	}
+
+	for _, prefix := range authorization.ResourcePrefixes {
+		prefix = strings.TrimSpace(prefix)
+		if strings.TrimSuffix(prefix, "/") == root {
+			foundRoot = true
+			continue
+		}
+		if _, bound := typedResources[prefix]; !bound {
+			return errors.New("AWS authorization contains a resource outside its exact typed-action rules")
+		}
+	}
+	if !foundRoot {
+		return errors.New("AWS wildcard-only read actions require the connected account root scope")
+	}
+	for resource := range typedResources {
+		if !containsExact(authorization.ResourcePrefixes, resource) {
+			return errors.New("AWS typed-action rule is outside the signed profile resource ceiling")
+		}
+	}
+	return nil
+}
+
+func containsExact(values []string, expected string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedKeys(values map[string]struct{}) []string {
