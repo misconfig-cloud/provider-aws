@@ -65,7 +65,9 @@ func assertTrustPolicySeparatesExternalIDFromSourceIdentityPermission(t *testing
 	var onboarding struct {
 		TrustPolicy struct {
 			Statements []struct {
-				Action    string                       `json:"Action"`
+				Sid       string                       `json:"Sid"`
+				Effect    string                       `json:"Effect"`
+				Action    any                          `json:"Action"`
 				Condition map[string]map[string]string `json:"Condition"`
 			} `json:"Statement"`
 		} `json:"trust_policy"`
@@ -76,17 +78,29 @@ func assertTrustPolicySeparatesExternalIDFromSourceIdentityPermission(t *testing
 	if len(onboarding.TrustPolicy.Statements) != 2 {
 		t.Fatalf("trust policy statements=%d, want 2: %s", len(onboarding.TrustPolicy.Statements), encoded)
 	}
-	statements := map[string]map[string]map[string]string{}
+	statements := map[string]struct {
+		Effect    string
+		Action    any
+		Condition map[string]map[string]string
+	}{}
 	for _, statement := range onboarding.TrustPolicy.Statements {
-		statements[statement.Action] = statement.Condition
+		statements[statement.Sid] = struct {
+			Effect    string
+			Action    any
+			Condition map[string]map[string]string
+		}{statement.Effect, statement.Action, statement.Condition}
 	}
-	assume := statements["sts:AssumeRole"]
-	if assume["StringEquals"]["sts:ExternalId"] != "misconfig-fixed-external-id" || assume["StringLike"]["sts:SourceIdentity"] != "misconfig-*" {
-		t.Fatalf("AssumeRole trust is not exact: %#v", assume)
+	deny := statements["DenyWrongMisconfigExternalID"]
+	if deny.Effect != "Deny" || deny.Action != "sts:AssumeRole" || deny.Condition["StringNotEquals"]["sts:ExternalId"] != "misconfig-fixed-external-id" {
+		t.Fatalf("wrong external ID deny is incomplete: %#v", deny)
 	}
-	setSource := statements["sts:SetSourceIdentity"]
-	if _, exists := setSource["StringEquals"]["sts:ExternalId"]; exists || setSource["StringLike"]["sts:SourceIdentity"] != "misconfig-*" {
-		t.Fatalf("SetSourceIdentity trust inherited the external ID or lost attribution: %#v", setSource)
+	allow := statements["AllowAttributedMisconfigSession"]
+	actions, ok := allow.Action.([]any)
+	if !ok || allow.Effect != "Allow" || len(actions) != 2 || actions[0] != "sts:AssumeRole" || actions[1] != "sts:SetSourceIdentity" || allow.Condition["StringLike"]["sts:SourceIdentity"] != "misconfig-*" {
+		t.Fatalf("source identity allow is incomplete: %#v", allow)
+	}
+	if _, exists := allow.Condition["StringEquals"]["sts:ExternalId"]; exists {
+		t.Fatalf("source identity allow inherited the external ID: %#v", allow)
 	}
 }
 
