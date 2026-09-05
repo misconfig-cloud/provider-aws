@@ -23,7 +23,7 @@ import (
 	provideradapter "github.com/misconfig-cloud/provider-sdk"
 )
 
-const publisherKeyID = "misconfig-aws-2026-v1"
+const publisherKeyID = "misconfig-aws-2026-v2"
 
 var version = "dev"
 
