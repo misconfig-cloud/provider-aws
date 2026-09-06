@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.107.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0
 	github.com/aws/smithy-go v1.28.1
-	github.com/misconfig-cloud/provider-sdk v0.4.1
+	github.com/misconfig-cloud/provider-sdk v0.11.0
 )
 
 require (

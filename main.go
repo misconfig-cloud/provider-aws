@@ -155,12 +155,14 @@ func signManifest(args []string) {
 	if err != nil || len(privateKey) != ed25519.PrivateKeySize {
 		log.Fatal("invalid private key")
 	}
+	credential := provideradapter.Credential{Kind: awsadapter.CredentialKind, MaximumTTLSeconds: int64(awsadapter.MaximumTTL.Seconds()), RevocationSemantics: awsadapter.RevocationSemantics, PayloadSchema: map[string]any{"type": "object", "required": []string{"Version", "AccessKeyId", "SecretAccessKey", "SessionToken", "Expiration"}}}
+	renderer := provideradapter.Renderer{Protocol: provideradapter.RendererProtocol, Executable: "misconfig-provider-aws", Artifacts: artifacts, SensitiveEnvironment: []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN", "AWS_PROFILE", "AWS_DEFAULT_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"}}
 	manifest := provideradapter.Manifest{
 		Protocol: provideradapter.ManifestProtocol, Publisher: provideradapter.Publisher{ID: "misconfig-cloud", KeyID: publisherKeyID}, Compatibility: provideradapter.Compatibility{Protocol: provideradapter.ManifestProtocol, Major: 2},
 		Release: awsadapter.Release, Provider: awsadapter.Provider,
 		ConfigurationSchema: map[string]any{"type": "object", "required": []string{"role_arn"}, "properties": map[string]any{"role_arn": map[string]any{"type": "string", "title": "Role ARN"}, "external_id": map[string]any{"type": "string", "title": "External ID", "description": "Optional. Misconfig generates one when omitted."}}},
-		Credential:          provideradapter.Credential{Kind: awsadapter.CredentialKind, MaximumTTLSeconds: int64(awsadapter.MaximumTTL.Seconds()), RevocationSemantics: awsadapter.RevocationSemantics, PayloadSchema: map[string]any{"type": "object", "required": []string{"Version", "AccessKeyId", "SecretAccessKey", "SessionToken", "Expiration"}}},
-		Renderer:            provideradapter.Renderer{Protocol: provideradapter.RendererProtocol, Executable: "misconfig-provider-aws", Artifacts: artifacts, SensitiveEnvironment: []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN", "AWS_PROFILE", "AWS_DEFAULT_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"}},
+		Credential:          &credential,
+		Renderer:            &renderer,
 		Broker:              provideradapter.Broker{Protocol: provideradapter.BrokerProtocol, Endpoint: *endpoint},
 		Actions:             awsadapter.ActionCapabilities(),
 	}

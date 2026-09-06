@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	SetLambdaReservedConcurrencyCapability = "aws.lambda.reserved-concurrency@1.0.0"
+	SetLambdaReservedConcurrencyCapability = "aws.lambda.reserved-concurrency@1.1.0"
 	SetLambdaReservedConcurrencyOperation  = "aws.lambda.SetReservedConcurrency"
 	ActionAuthorityTTL                     = 2 * time.Minute
 )
@@ -60,6 +60,7 @@ func lambdaReservedConcurrencyCapability() provideradapter.ActionCapability {
 		Operation:         SetLambdaReservedConcurrencyOperation,
 		MaximumTTLSeconds: int64(ActionAuthorityTTL.Seconds()),
 		Reversible:        true,
+		Semantics:         &provideradapter.ActionSemantics{Protocol: provideradapter.ActionSemanticsProtocol, Effects: []provideradapter.ActionEffect{provideradapter.EffectWrite, provideradapter.EffectAvailabilityChange}},
 		ParametersSchema: map[string]any{
 			"type": "object", "additionalProperties": false,
 			"properties": map[string]any{
